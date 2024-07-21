@@ -8,6 +8,7 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.repeat.RepeatStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -15,10 +16,14 @@ import org.springframework.context.annotation.Configuration;
 @EnableBatchProcessing
 public class BatchConfig {
 
+    @Autowired
+    private JobCompletionNotificationListener listener;
+
     @Bean
     public Job job(JobBuilderFactory jobBuilderFactory, StepBuilderFactory stepBuilderFactory) {
         return jobBuilderFactory.get("job")
                 .incrementer(new RunIdIncrementer())
+                .listener(listener)
                 .start(step1(stepBuilderFactory))
                 .build();
     }
