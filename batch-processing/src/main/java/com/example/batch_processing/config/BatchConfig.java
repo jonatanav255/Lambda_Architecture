@@ -52,10 +52,13 @@ public class BatchConfig {
     public Step step1() {
         log.info("STEP 1 CONFIGURED");
         return stepBuilderFactory.get("step1")
-                .<MyEntity, MyEntity>chunk(10) // Set chunk size to 10
-                .reader(reader()) // Set the reader
-                .processor(processor()) // Set the processor
-                .writer(writer(entityManagerFactory)) // Set the writer
+                .<MyEntity, MyEntity>chunk(10)
+                .reader(reader())
+                .processor(processor())
+                .writer(writer(entityManagerFactory))
+                .faultTolerant()
+                .retryLimit(3) // Retry up to 3 times
+                .retry(Exception.class) // Retry on any exception
                 .build();
     }
 
