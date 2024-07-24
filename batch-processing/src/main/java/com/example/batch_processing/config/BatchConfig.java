@@ -72,14 +72,27 @@ public class BatchConfig {
 
     @Bean
     public ItemProcessor<MyEntity, MyEntity> processor() {
-        return item -> {
-            try {
-                log.info("Processing entity: " + item);
-                item.setData(item.getData().toUpperCase()); // Example processing logic
+        return new ItemProcessor<MyEntity, MyEntity>() {
+            private static final int MAX_RETRIES = 3;
+
+            @Override
+            public MyEntity process(MyEntity item) throws Exception {
+                int retryCount = 0;
+                boolean success = false;
+                while (!success && retryCount < MAX_RETRIES) {
+                    try {
+                        log.info("Processing entity: " + item);
+                        item.setData(item.getData().toUpperCase()); // Example processing logic
+                        success = true;
+                    } catch (Exception e) {
+                        retryCount++;
+                        log.error("Error processing entity: " + item + ", retrying (" + retryCount + "/" + MAX_RETRIES + ")", e);
+                        if (retryCount >= MAX_RETRIES) {
+                            throw e; // If max retries reached, rethrow the exception
+                        }
+                    }
+                }
                 return item;
-            } catch (Exception e) {
-                log.error("Error processing entity: " + item, e);
-                throw e;
             }
         };
     }
