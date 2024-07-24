@@ -1,5 +1,7 @@
 package com.example.batch_processing.config;
 
+import javax.persistence.EntityManagerFactory;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.batch.core.Job;
@@ -9,11 +11,15 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JpaItemWriter;
+import org.springframework.batch.item.database.JpaPagingItemReader;
+import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import com.example.batch_processing.entity.MyEntity;
 
 @Configuration
 @EnableBatchProcessing
@@ -30,12 +36,15 @@ public class BatchConfig {
     @Autowired
     private JobCompletionNotificationListener listener;
 
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
     @Bean
     public Job job() {
         return jobBuilderFactory.get("job")
                 .incrementer(new RunIdIncrementer())
-                .listener(listener)
-                .start(step1())
+                .listener(listener) // Add the listener to the job
+                .start(step1()) // Start with the defined step
                 .build();
     }
 
@@ -43,49 +52,42 @@ public class BatchConfig {
     public Step step1() {
         log.info("STEP 1 CONFIGURED");
         return stepBuilderFactory.get("step1")
-                .<String, String>chunk(1) // Use chunk size of 1 for simplicity
-                .reader(reader())
-                .processor(processor())
-                .writer(writer())
+                .<MyEntity, MyEntity>chunk(10) // Set chunk size to 10
+                .reader(reader()) // Set the reader
+                .processor(processor()) // Set the processor
+                .writer(writer(entityManagerFactory)) // Set the writer
                 .build();
     }
 
     @Bean
-    public ItemReader<String> reader() {
+    public JpaPagingItemReader<MyEntity> reader() {
         log.info("ITEM READER INITIALIZED");
-        return new ItemReader<String>() {
-            private String[] messages = {"message1", "message2", "message3"};
-            private int count = 0;
-
-            @Override
-            public String read() {
-                log.info("Reader read method called");
-                if (count < messages.length) {
-                    String message = messages[count++];
-                    log.info("Reading message: " + message);
-                    return message;
-                } else {
-                    log.info("All messages read.");
-                    return null; // indicates the end of the reading
-                }
-            }
-        };
+        return new JpaPagingItemReaderBuilder<MyEntity>()
+                .name("jpaReader")
+                .entityManagerFactory(entityManagerFactory) // Use the EntityManagerFactory
+                .queryString("SELECT e FROM MyEntity e") // Define the query to fetch entities
+                .pageSize(10) // Set the page size to 10
+                .build();
     }
 
     @Bean
-    public ItemProcessor<String, String> processor() {
+    public ItemProcessor<MyEntity, MyEntity> processor() {
         return item -> {
-            log.info("Processing message: " + item);
-            return item.toUpperCase();
+            try {
+                log.info("Processing entity: " + item);
+                item.setData(item.getData().toUpperCase()); // Example processing logic
+                return item;
+            } catch (Exception e) {
+                log.error("Error processing entity: " + item, e);
+                throw e;
+            }
         };
     }
 
     @Bean
-    public ItemWriter<String> writer() {
-        return items -> {
-            for (String item : items) {
-                log.info("Writing message: " + item);
-            }
-        };
+    public ItemWriter<MyEntity> writer(EntityManagerFactory entityManagerFactory) {
+        JpaItemWriter<MyEntity> writer = new JpaItemWriter<>();
+        writer.setEntityManagerFactory(entityManagerFactory);
+        return writer;
     }
 }
