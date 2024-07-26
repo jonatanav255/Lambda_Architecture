@@ -59,6 +59,9 @@ public class BatchConfig {
                 .faultTolerant()
                 .retryLimit(3) // Retry up to 3 times
                 .retry(Exception.class) // Retry on any exception
+                .skipLimit(5) // Skip up to 5 items in case of skippable exceptions
+                .skip(Exception.class) // Skip these exceptions
+                .listener(new StepFailureListener()) // Step failure listener
                 .build();
     }
 
