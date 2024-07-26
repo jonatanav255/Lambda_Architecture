@@ -11,9 +11,9 @@ import org.springframework.batch.core.configuration.annotation.JobBuilderFactory
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
-import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.database.JpaItemWriter;
 import org.springframework.batch.item.database.JpaPagingItemReader;
+import org.springframework.batch.item.database.builder.JpaItemWriterBuilder;
 import org.springframework.batch.item.database.builder.JpaPagingItemReaderBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -55,7 +55,7 @@ public class BatchConfig {
                 .<MyEntity, MyEntity>chunk(10)
                 .reader(reader())
                 .processor(processor())
-                .writer(writer(entityManagerFactory))
+                .writer(writer())
                 .faultTolerant()
                 .retryLimit(3) // Retry up to 3 times
                 .retry(Exception.class) // Retry on any exception
@@ -75,35 +75,17 @@ public class BatchConfig {
 
     @Bean
     public ItemProcessor<MyEntity, MyEntity> processor() {
-        return new ItemProcessor<MyEntity, MyEntity>() {
-            private static final int MAX_RETRIES = 3;
-
-            @Override
-            public MyEntity process(MyEntity item) throws Exception {
-                int retryCount = 0;
-                boolean success = false;
-                while (!success && retryCount < MAX_RETRIES) {
-                    try {
-                        log.info("Processing entity: " + item);
-                        item.setData(item.getData().toUpperCase()); // Example processing logic
-                        success = true;
-                    } catch (Exception e) {
-                        retryCount++;
-                        log.error("Error processing entity: " + item + ", retrying (" + retryCount + "/" + MAX_RETRIES + ")", e);
-                        if (retryCount >= MAX_RETRIES) {
-                            throw e; // If max retries reached, rethrow the exception
-                        }
-                    }
-                }
-                return item;
-            }
+        return item -> {
+            log.info("Processing entity: " + item);
+            item.setData(item.getData().toUpperCase()); // Example processing logic
+            return item;
         };
     }
 
     @Bean
-    public ItemWriter<MyEntity> writer(EntityManagerFactory entityManagerFactory) {
-        JpaItemWriter<MyEntity> writer = new JpaItemWriter<>();
-        writer.setEntityManagerFactory(entityManagerFactory);
-        return writer;
+    public JpaItemWriter<MyEntity> writer() {
+        return new JpaItemWriterBuilder<MyEntity>()
+                .entityManagerFactory(entityManagerFactory)
+                .build();
     }
 }
